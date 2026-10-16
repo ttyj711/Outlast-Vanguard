@@ -1,0 +1,107 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="theme-color" content="#07131d" />
+    <title>救援小队 · 自动指挥模拟</title>
+  </head>
+  <body>
+    <div id="app">
+      <header class="topbar">
+        <div>
+          <p class="eyebrow">AUTONOMOUS RESCUE SIMULATION</p>
+          <h1>救援小队 <span>vs</span> 无尽尸潮</h1>
+        </div>
+        <div class="status-pill"><i></i><span id="game-status">待命</span></div>
+      </header>
+
+      <main class="layout">
+        <section class="battlefield-panel" aria-label="战场地图">
+          <canvas id="battlefield" aria-label="自动指挥战场"></canvas>
+          <div class="map-caption"><span id="map-name">蛇形救援通道</span><span id="sim-clock">00:00</span></div>
+        </section>
+
+        <aside class="sidebar">
+          <section class="card">
+            <h2>任务状态</h2>
+            <div class="stats-grid">
+              <div class="stat"><span>存活队员</span><strong id="team-count">6</strong></div>
+              <div class="stat"><span id="survivor-label">平民剩余</span><strong id="survivor-count">10/10</strong></div>
+              <div class="stat"><span id="evacuated-label">撤离人数</span><strong id="evacuated-count">0</strong></div>
+              <div class="stat"><span>尸潮数量</span><strong id="zombie-count">0</strong></div>
+            </div>
+            <div class="director-grid" aria-label="尸潮态势">
+              <div class="stat"><span>生存倒计时</span><strong id="survival-countdown">—</strong></div>
+              <div class="stat"><span>尸潮压力</span><strong id="pressure-level">—</strong></div>
+              <div class="stat"><span>防线完整度</span><strong id="defense-integrity">—</strong></div>
+            </div>
+          </section>
+          <section class="card tactic-card">
+            <h2>AI 指挥</h2>
+            <strong id="tactic-name">等待任务开始</strong>
+            <p id="tactic-reason">开始后由本地规则 AI 自动指挥队伍。</p>
+          </section>
+          <section class="card llm-card">
+            <h2>第三方 LLM 接入</h2>
+            <label class="llm-toggle"><input id="llm-enabled" type="checkbox" /><span>启用 LLM 自动指挥</span></label>
+            <label class="llm-field" for="llm-base-url">OpenAI 兼容 API Base URL</label>
+            <input id="llm-base-url" class="llm-input" type="url" placeholder="https://api.example.com/v1" autocomplete="url" />
+            <label class="llm-field" for="llm-model">模型名称</label>
+            <input id="llm-model" class="llm-input" type="text" placeholder="例如：gpt-4o-mini" autocomplete="off" />
+            <label class="llm-field" for="llm-api-key">API Key</label>
+            <input id="llm-api-key" class="llm-input" type="password" placeholder="仅保存在当前标签页会话" autocomplete="new-password" />
+            <div class="llm-buttons"><button id="llm-apply" type="button">应用设置</button><button id="llm-test" type="button">测试连接</button></div>
+            <p id="llm-status" class="llm-status">本地规则 AI 待命。</p>
+            <p class="llm-note">配置完整的模型信息后，任务失败时会自动生成战败复盘；是否启用 LLM 自动指挥不影响复盘。浏览器直连要求服务商允许 CORS。密钥仅保存在当前标签页会话，并会随模型请求发送给所填服务商。</p>
+            <section class="llm-trace" aria-label="LLM 实时输入输出日志">
+              <div class="llm-trace-heading"><strong>LLM 实时输入 / 输出</strong><button id="llm-trace-clear" type="button">清空</button></div>
+              <p class="llm-trace-note">最近 30 条：展开“完整提示词”可查看 system prompt、战场输入和请求参数；API Key 与认证头不会记录。</p>
+              <ol id="llm-trace-log" aria-live="polite"></ol>
+            </section>
+          </section>
+          <section class="card ammo-card">
+            <h2>火力与补给</h2>
+            <div class="ammo-summary"><span id="ammo-total">全队弹药：—</span><span id="reload-count">换弹中：—</span></div>
+            <div id="ammo-overview" class="ammo-overview"></div>
+            <p id="ammo-logistics" class="ammo-logistics">弹药箱：未部署</p>
+          </section>
+          <section class="card controls">
+            <h2>模拟控制</h2>
+            <label class="mode-label" for="mode-select">玩法模式</label>
+            <select id="mode-select">
+              <option value="" disabled selected>正在加载玩法…</option>
+            </select>
+            <div class="pressure-control">
+              <label class="mode-label" for="pressure-slider">尸潮压力 <strong id="pressure-value">标准 · ×1.00</strong></label>
+              <input id="pressure-slider" type="range" min="0.5" max="2" step="0.25" value="1" aria-label="尸潮压力倍率" />
+              <div class="pressure-scale"><span>舒缓 ×0.50</span><span>标准 ×1.00</span><span>极限 ×2.00</span></div>
+              <p id="pressure-hint" class="pressure-hint">影响开局尸量、后续刷新速度和僵尸移速；开始后锁定。</p>
+            </div>
+            <p id="mode-description" class="mode-description">6 人小队护送 10 名平民穿越尸潮。</p>
+            <div id="roster-display" class="roster-display" aria-label="当前兵种编制"></div>
+            <details class="roster-editor">
+              <summary>自定义本关兵种数量</summary>
+              <p class="roster-editor-hint">各关卡独立保存；数量为 0 表示不编入。单局最多 500 人。</p>
+              <div id="roster-editor-grid" class="roster-editor-grid"></div>
+              <div class="roster-editor-footer"><span id="roster-total">总人数：—</span><button id="apply-roster" type="button">应用编制</button><button id="reset-roster" type="button">恢复默认</button></div>
+            </details>
+            <label class="mode-label" for="seed-input">地图种子（相同种子可复现布局）</label>
+            <div class="seed-row"><input id="seed-input" maxlength="24" aria-label="地图种子"/><button id="apply-seed">应用种子</button><button id="copy-seed">复制</button></div>
+            <div class="button-row">
+              <button id="start-button" class="primary">开始任务</button>
+              <button id="pause-button" disabled>暂停</button>
+            </div>
+            <button id="restart-button" class="secondary">随机新战局 / New Deployment</button>
+          </section>
+          <section class="card log-card">
+            <h2>指挥日志</h2>
+            <ol id="event-log"><li>战场初始化完成，等待指挥。</li></ol>
+          </section>
+          <p class="footnote">本地规则 AI · 可选连接第三方 LLM</p>
+        </aside>
+      </main>
+    </div>
+    <script type="module" src="/src/main.ts"></script>
+  </body>
+</html>
